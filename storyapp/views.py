@@ -14,7 +14,8 @@ from .models import Story, Chapter, RequestChapter, VoteChapter, VoteFinish, Not
 from .serializers import (
     StoryListSerializer, StoryReadSerializer, StoryCreateSerializer,
     RequestChapterReadSerializer, RequestChapterWriteSerializer,
-    VoteChapterSerializer, VoteFinishSerializer, NotificationSerializer
+    VoteChapterSerializer, VoteFinishSerializer, NotificationSerializer,
+    ChapterReadSerializer
 )
 
 class StoryPagination(PageNumberPagination):
@@ -77,6 +78,29 @@ class StoryDetailView(APIView):
         serializer = StoryReadSerializer(story)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+class ChapterDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, pk):
+        chapter = get_object_or_404(Chapter, pk=pk, author=request.user)
+        story = chapter.story
+        
+     
+        if chapter.chapter_number == 1 and story.chapters.count() > 1:
+            return Response(
+                {"detail": "Cannot delete the foundational chapter because other co-authors have contributed to this story."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        chapter.delete()
+        
+       
+        if story.chapters.count() == 0:
+            story.delete()
+            
+        return Response(status=status.HTTP_204_NO_CONTENT)
+        
 
 
 class RequestedChapterView(APIView):
@@ -206,3 +230,14 @@ class NotificationDetailView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+    
+class ChapterFetchView(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request, story_pk, chapter_number):
+        story = get_object_or_404(Story, pk=story_pk)
+        chapter = get_object_or_404(Chapter, story=story, chapter_number=chapter_number)
+        serializer = ChapterReadSerializer(chapter)
+        return Response(serializer.data, status=status.HTTP_200_OK)

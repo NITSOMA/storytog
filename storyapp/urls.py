@@ -6,7 +6,9 @@ from .views import (
     VoteFinishView, 
    NotificationListView,
     NotificationDetailView, 
-    StoryDetailView
+    StoryDetailView, 
+    ChapterDeleteView,
+    ChapterFetchView
 )
 
 urlpatterns = [
@@ -18,4 +20,8 @@ urlpatterns = [
     path('finish/<int:story_pk>/', VoteFinishView.as_view(), name='vote-finish'),
     path('notifications/', NotificationListView.as_view(), name='notification-list'),
     path('notifications/<int:notification_pk>/', NotificationDetailView.as_view(), name='notification-detail'),
+    path('chapter/<int:pk>/', ChapterDeleteView.as_view(), name='chapter-delete'),
+    path('chapters/<int:story_pk>/<int:chapter_number>/', ChapterFetchView.as_view(), name='fetch-chapter')
+    
+    
 ]

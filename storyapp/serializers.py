@@ -10,7 +10,8 @@ class ChapterReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Chapter
-        fields = ['id', 'chapter_number', 'content', 'author_username', 'created_at']
+        fields = ['id', 'chapter_number', 'content', 'author_username', 'created_at', 'author']
+        read_only_fields = ['author']
 
 
 class StoryCreateSerializer(serializers.ModelSerializer):
@@ -60,15 +61,26 @@ class StoryListSerializer(serializers.ModelSerializer):
 
 class StoryReadSerializer(serializers.ModelSerializer):
 
-    chapters = ChapterReadSerializer(many=True, read_only=True)
+    first_chapter = serializers.SerializerMethodField()
     co_authors = serializers.SerializerMethodField()
+    total_chapters = serializers.SerializerMethodField()
 
     class Meta:
         model = Story
-        fields = ['id', 'title', 'created_at', 'is_completed', 'chapters', 'co_authors']
+        fields = ['id', 'title', 'created_at', 'is_completed', 'first_chapter', 'co_authors', 'total_chapters']
+
+    def get_first_chapter(self, obj):
+        
+        first_chap = obj.chapters.filter(chapter_number=1).first()
+        if first_chap:
+            return ChapterReadSerializer(first_chap).data
+        return None
 
     def get_co_authors(self, obj):
         return list(obj.chapters.values_list('author__username', flat=True).distinct())
+
+    def get_total_chapters(self, obj):
+        return obj.chapters.count()
 
 
 
