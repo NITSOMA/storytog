@@ -4,7 +4,6 @@ from .models import Story, Chapter, RequestChapter, VoteChapter, VoteFinish, Not
 
 User = get_user_model()
 
-
 class ChapterReadSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source='author.username', read_only=True)
 
@@ -12,7 +11,6 @@ class ChapterReadSerializer(serializers.ModelSerializer):
         model = Chapter
         fields = ['id', 'chapter_number', 'content', 'author_username', 'created_at', 'author']
         read_only_fields = ['author']
-
 
 class StoryCreateSerializer(serializers.ModelSerializer):
     first_chapter_content = serializers.CharField(write_only=True)
@@ -24,7 +22,6 @@ class StoryCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         chapter_content = validated_data.pop('first_chapter_content')
         user = self.context['request'].user
-        
         story = Story.objects.create(**validated_data)
         Chapter.objects.create(
             story=story,
@@ -33,9 +30,7 @@ class StoryCreateSerializer(serializers.ModelSerializer):
         )
         return story
 
-
 class StoryListSerializer(serializers.ModelSerializer):
-
     chapters_count = serializers.IntegerField(read_only=True)
     co_authors_count = serializers.IntegerField(read_only=True)
     first_chapter_snippet = serializers.SerializerMethodField()
@@ -58,9 +53,7 @@ class StoryListSerializer(serializers.ModelSerializer):
     def get_co_authors(self, obj):
         return list(obj.chapters.values_list('author__username', flat=True).distinct())
 
-
 class StoryReadSerializer(serializers.ModelSerializer):
-
     first_chapter = serializers.SerializerMethodField()
     co_authors = serializers.SerializerMethodField()
     total_chapters = serializers.SerializerMethodField()
@@ -70,7 +63,6 @@ class StoryReadSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'created_at', 'is_completed', 'first_chapter', 'co_authors', 'total_chapters']
 
     def get_first_chapter(self, obj):
-        
         first_chap = obj.chapters.filter(chapter_number=1).first()
         if first_chap:
             return ChapterReadSerializer(first_chap).data
@@ -82,15 +74,12 @@ class StoryReadSerializer(serializers.ModelSerializer):
     def get_total_chapters(self, obj):
         return obj.chapters.count()
 
-
-
 class VoteChapterSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
 
     class Meta:
         model = VoteChapter
         fields = ['id', 'user_username', 'choice']
-
 
 class VoteFinishSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source='author.username', read_only=True)
@@ -104,12 +93,24 @@ class VoteFinishSerializer(serializers.ModelSerializer):
         validated_data['author'] = self.context['request'].user
         return super().create(validated_data)
 
-
-
 class RequestChapterWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = RequestChapter
         fields = ['id', 'content']
+
+    def validate(self, data):
+        user = self.context['request'].user
+        story = self.context.get('story')
+        if story:
+            next_chapter_number = story.chapters.count() + 1
+            existing_request = RequestChapter.objects.filter(
+                story=story,
+                author=user,
+                chapter_number=next_chapter_number
+            ).exists()
+            if existing_request:
+                raise serializers.ValidationError("You have already submitted a proposal for this chapter.")
+        return data
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
@@ -117,7 +118,6 @@ class RequestChapterWriteSerializer(serializers.ModelSerializer):
             return super().create(validated_data)
         except ValueError as e:
             raise serializers.ValidationError({"detail": str(e)})
-
 
 class RequestChapterReadSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source='author.username', read_only=True)
@@ -139,18 +139,26 @@ class RequestChapterReadSerializer(serializers.ModelSerializer):
     def get_total_rejections(self, obj):
         return obj.votes.filter(choice=False).count()
 
-
-class NotificationSerializer(serializers.ModelSerializer):
-    requested_chapter = RequestChapterReadSerializer(read_only=True)
+class NotificationListSerializer(serializers.ModelSerializer):
+    story_title = serializers.CharField(source='requested_chapter.story.title', read_only=True)
+    author_username = serializers.CharField(source='requested_chapter.author.username', read_only=True)
 
     class Meta:
         model = Notification
-        fields = ['id', 'is_read', 'created_at', 'requested_chapter']
+        fields = ['id', 'is_read', 'created_at', 'story_title', 'author_username']
         read_only_fields = ['id', 'created_at']
 
+class NotificationDetailSerializer(serializers.ModelSerializer):
+    requested_chapter = RequestChapterReadSerializer(read_only=True)
+    story_title = serializers.CharField(source='requested_chapter.story.title', read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = ['id', 'is_read', 'created_at', 'story_title', 'requested_chapter']
+        read_only_fields = ['id', 'created_at']
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    notifications = NotificationSerializer(many=True, read_only=True)
+    notifications = NotificationListSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
