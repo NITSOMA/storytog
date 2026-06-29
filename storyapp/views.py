@@ -98,12 +98,20 @@ class RequestedChapterView(APIView):
         if serializer.is_valid():
             try:
                 new_request = serializer.save(story=story)
-                co_authors = Chapter.objects.filter(story=story).values_list('author', flat=True).distinct()
+                
+              
+                co_authors = set(
+                    Chapter.objects.filter(story=story)
+                    .exclude(author=request.user)
+                    .values_list('author', flat=True)
+                )
+                
                 notifications_to_create = [
                     Notification(user_id=author_id, requested_chapter=new_request)
                     for author_id in co_authors
                 ]
                 Notification.objects.bulk_create(notifications_to_create)
+                
                 def send_redis_notifications(author_ids, story_title):
                     channel_layer = get_channel_layer()
                     async def run_broadcast():
@@ -119,12 +127,14 @@ class RequestedChapterView(APIView):
                             except Exception as redis_err:
                                 print(f"Redis Async Error for user {author_id}: {redis_err}")
                     asyncio.run(run_broadcast())
-                target_authors = [aid for aid in co_authors]
+                
+                target_authors = list(co_authors)
                 threading.Thread(
                     target=send_redis_notifications, 
                     args=(target_authors, story.title),
                     daemon=True
                 ).start()
+                
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -140,13 +150,51 @@ class VoteChapterView(APIView):
                 {"detail": "Voting is closed for this chapter proposal."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
         vote_instance = VoteChapter.objects.filter(requested_chapter=requested_chapter, user=request.user).first()
         if vote_instance and vote_instance.choice == request.data.get('choice'):
             serializer = VoteChapterSerializer(vote_instance)
             return Response(serializer.data, status=status.HTTP_200_OK)
+            
         serializer = VoteChapterSerializer(instance=vote_instance, data=request.data)
         if serializer.is_valid():
             serializer.save(requested_chapter=requested_chapter, user=request.user)
+            Notification.objects.filter(user=request.user, requested_chapter=requested_chapter).update(is_read=True)
+            
+            story = requested_chapter.story
+            total_eligible_voters = Chapter.objects.filter(story=story)\
+                                                   .values('author')\
+                                                   .distinct()\
+                                                   .exclude(author=requested_chapter.author)\
+                                                   .count()
+
+            if total_eligible_voters == 0:
+                total_eligible_voters = 1
+
+            approvals = requested_chapter.votes.filter(choice=True).count()
+            rejections = requested_chapter.votes.filter(choice=False).count()
+
+            if approvals > total_eligible_voters / 2:
+                requested_chapter.status = 'approved'
+                requested_chapter.save()
+
+                next_chapter_number = story.chapters.count() + 1
+                Chapter.objects.create(
+                    story=story,
+                    author=requested_chapter.author,
+                    content=requested_chapter.content,
+                    chapter_number=next_chapter_number
+                )
+
+                Notification.objects.filter(requested_chapter=requested_chapter).delete()
+                requested_chapter.delete()
+                return Response({"detail": "Proposal approved and successfully integrated into the story."}, status=status.HTTP_200_OK)
+
+            elif rejections >= total_eligible_voters / 2:
+                requested_chapter.status = 'rejected'
+                requested_chapter.save()
+                return Response({"detail": "Chapter proposal rejected."}, status=status.HTTP_200_OK)
+
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -159,6 +207,15 @@ class VoteFinishView(APIView):
         serializer = VoteFinishSerializer(instance=vote_instance, data=request.data, context={'request': request})
         if serializer.is_valid():
             serializer.save(story=story, author=request.user)
+            
+            total_co_authors = Chapter.objects.filter(story=story).values('author').distinct().count()
+            finish_votes = VoteFinish.objects.filter(story=story, choice=True).count()
+
+            if finish_votes > total_co_authors / 2:
+                story.is_completed = True
+                story.save()
+                return Response({"detail": "Story marked as completed!"}, status=status.HTTP_200_OK)
+                
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

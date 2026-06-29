@@ -51,7 +51,8 @@ class StoryListSerializer(serializers.ModelSerializer):
         return ""
 
     def get_co_authors(self, obj):
-        return list(obj.chapters.values_list('author__username', flat=True).distinct())
+        usernames = obj.chapters.values_list('author__username', flat=True)
+        return list(set(usernames))
 
 class StoryReadSerializer(serializers.ModelSerializer):
     first_chapter = serializers.SerializerMethodField()
@@ -69,7 +70,8 @@ class StoryReadSerializer(serializers.ModelSerializer):
         return None
 
     def get_co_authors(self, obj):
-        return list(obj.chapters.values_list('author__username', flat=True).distinct())
+        usernames = obj.chapters.values_list('author__username', flat=True)
+        return list(set(usernames))
 
     def get_total_chapters(self, obj):
         return obj.chapters.count()
@@ -102,6 +104,10 @@ class RequestChapterWriteSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         story = self.context.get('story')
         if story:
+            last_chapter = story.chapters.order_by('-chapter_number').first()
+            if last_chapter and last_chapter.author == user:
+                raise serializers.ValidationError("You cannot propose consecutive chapters. Let another author contribute!")
+
             next_chapter_number = story.chapters.count() + 1
             existing_request = RequestChapter.objects.filter(
                 story=story,
