@@ -77,26 +77,7 @@ class VoteChapter(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         
-        request_obj = self.requested_chapter
-        story_obj = request_obj.story
         
-        if request_obj.status == 'pending':
-            total_co_authors = Chapter.objects.filter(story=story_obj).values('author').distinct().count()
-            approvals = request_obj.votes.filter(choice=True).count()
-            rejections = request_obj.votes.filter(choice=False).count()
-            
-            if approvals > (total_co_authors / 2):
-                request_obj.status = 'approved'
-                request_obj.save()
-                
-                Chapter.objects.create(
-                    story=story_obj,
-                    author=request_obj.author,
-                    content=request_obj.content
-                )
-            elif rejections >= (total_co_authors / 2):
-                request_obj.status = 'rejected'
-                request_obj.save()
     
     
 class VoteFinish(models.Model):
@@ -127,7 +108,7 @@ class VoteFinish(models.Model):
 
 class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
-    requested_chapter = models.ForeignKey(RequestChapter, on_delete=models.CASCADE)
+    requested_chapter = models.ForeignKey(RequestChapter, on_delete=models.CASCADE, null=True, blank=True)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
 

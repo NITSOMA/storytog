@@ -29,7 +29,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 )
            
         except Exception as e:
-            print(f"🚨 Error during disconnect: {str(e)}")
+            print(f" Error during disconnect: {str(e)}")
 
     async def send_notification(self, event):
         message = event['message']

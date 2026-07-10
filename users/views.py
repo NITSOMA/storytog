@@ -1,12 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import UserRegisterSerializer, LoginSerializer, UserProfileSerializer
+from .serializers import UserRegisterSerializer, LoginSerializer, UserProfileSerializer, AuthorSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 from .models import User
+from django.shortcuts import get_object_or_404
 
 
 class RegisterView(APIView):
@@ -108,3 +109,13 @@ class ProfileView(APIView):
     def delete(self, request):
         request.user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    
+class AuthorView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, pk):
+        author = get_object_or_404(User, pk=pk)
+        serializer = AuthorSerializer(author,  context={"request": request})
+        return Response(serializer.data)
+        

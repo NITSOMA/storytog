@@ -57,3 +57,21 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def get_contributed_stories(self, obj):
         stories = Story.objects.filter(chapters__author=obj).distinct()
         return StoryListSerializer(stories, many=True).data
+    
+    
+class AuthorSerializer(serializers.ModelSerializer):
+    profile_image = serializers.ImageField(required=False, allow_null=True)
+   
+    
+    contributed_stories = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "about", "profile_image",  'contributed_stories']
+        read_only_fields = ("id", "email")
+        
+    def get_contributed_stories(self, obj):
+        stories = Story.objects.filter(chapters__author=obj).distinct()
+        return StoryListSerializer(stories, many=True).data
+    
+    

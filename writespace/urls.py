@@ -23,6 +23,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('user/', include("users.urls")),
     path('story/', include("storyapp.urls")),
+    path('social/', include("social.urls")),
+    
 ]
 
 

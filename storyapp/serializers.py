@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import Story, Chapter, RequestChapter, VoteChapter, VoteFinish, Notification
+from social.serializers import CommentSerializer
 
 User = get_user_model()
 
@@ -58,10 +59,11 @@ class StoryReadSerializer(serializers.ModelSerializer):
     first_chapter = serializers.SerializerMethodField()
     co_authors = serializers.SerializerMethodField()
     total_chapters = serializers.SerializerMethodField()
+    comments = CommentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Story
-        fields = ['id', 'title', 'created_at', 'is_completed', 'first_chapter', 'co_authors', 'total_chapters']
+        fields = ['id', 'title', 'created_at', 'is_completed', 'first_chapter', 'co_authors', 'total_chapters', 'comments']
 
     def get_first_chapter(self, obj):
         first_chap = obj.chapters.filter(chapter_number=1).first()
@@ -163,9 +165,3 @@ class NotificationDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'is_read', 'created_at', 'story_title', 'requested_chapter']
         read_only_fields = ['id', 'created_at']
 
-class UserProfileSerializer(serializers.ModelSerializer):
-    notifications = NotificationListSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'notifications']
