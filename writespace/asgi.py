@@ -13,7 +13,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'writespace.settings')
 application = ProtocolTypeRouter({
    
     "http": get_asgi_application(),
-    "websocket":AuthMiddlewareStack(          # <-- 2. WRAP YOUR ROUTER HERE
+    "websocket":AuthMiddlewareStack(         
         URLRouter(
             storyapp.routing.websocket_urlpatterns
         )
