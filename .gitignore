@@ -1,0 +1,24 @@
+# Security & Local Database
+.env
+db.sqlite3
+/media/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+
+# Virtual Environment
+venv/
+.venv/
+.env/
+.env.example
+
+
+#operating System files
+
+.DS_Store
+
+
+#
+CLAUDE.md
