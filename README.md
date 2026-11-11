@@ -1,5 +1,7 @@
 # StoryTog — Backend API
 
+[![Backend tests](https://github.com/NITSOMA/storytog/actions/workflows/tests.yml/badge.svg)](https://github.com/NITSOMA/storytog/actions/workflows/tests.yml)
+
 **The API behind collaborative storytelling.**
 
 StoryTog is a platform where writers create stories together, one chapter at a time. Writers can submit a continuation to an existing story, and its current authors review and vote on whether the proposed chapter should be accepted.
