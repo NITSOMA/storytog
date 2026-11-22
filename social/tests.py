@@ -53,3 +53,52 @@ class CommentPermissionTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(Comments.objects.exists())               # still there
+        
+        
+class CommentCreateTests(APITestCase):
+    url = '/social/comment/'
+
+    def setUp(self):
+        self.ana = User.objects.create_user(username='ana', email='ana@example.com', password='pass')
+        self.bill = User.objects.create_user(username='bill', email='bill@example.com', password='pass')
+        self.story = Story.objects.create(title='Some story')
+
+    def test_anonymous_user_cannot_create_comment(self):
+        response = self.client.post(self.url, {'story_id': self.story.pk, 'content': 'New comment'}, format='json')
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(Comments.objects.exists())
+
+    def test_authenticated_user_can_create_comment(self):
+        self.client.force_authenticate(self.ana)
+        response = self.client.post(self.url, {'story_id': self.story.pk, 'content': 'New comment'}, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['content'], 'New comment')
+        comment = Comments.objects.get()
+        self.assertEqual(comment.content, 'New comment')
+        self.assertEqual(comment.story_id, self.story)
+        self.assertEqual(comment.author, self.ana)
+
+    def test_author_cannot_be_faked(self):
+        self.client.force_authenticate(self.ana)
+        response = self.client.post(
+            self.url,
+            {'story_id': self.story.pk, 'content': 'New comment', 'author': self.bill.pk},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)            
+        self.assertEqual(Comments.objects.get().author, self.ana)   
+        
+    def test_empty_content_is_rejected(self):
+        self.client.force_authenticate(self.ana)
+        response = self.client.post(self.url, {'story_id': self.story.pk, 'content': ''}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('content', response.data)
+        self.assertFalse(Comments.objects.exists())
+        
+    def test_comment_cannot_be_saved_for_nonexistent_story(self):
+        self.client.force_authenticate(self.ana)
+        response = self.client.post(self.url, {'story_id': 999, 'content': 'New comment'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('story_id', response.data)     
+        self.assertFalse(Comments.objects.exists())
